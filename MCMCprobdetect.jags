@@ -1,0 +1,25 @@
+model{
+# Logit model for observed detections
+for (i in 1:Nobs){
+	y[i] ~ dbern(y.hat[i])
+    y.hat[i] <- max(0, min(1,P[i]))
+	logit(P[i]) <- -8 + alpha[site[i]] + phi[site[i]]*DNNprob[i] + inprod(B, X[i,])
+}
+# Priors
+# Fixed effect params for signal quality variables , X_j
+for (b in 1:Neff){
+      B[b] ~ dt(0, tauB[b], 1) # cauchy prior (Gelman et al., 2008)
+}
+# HyperPrior for "Machine Learning" DNNprob effect (~5)
+phi0 ~ dnorm(5,1) T(0,) # informed normal prior 
+# Site random effects for intercept and slope of DNNprob
+for (s in 1:Nsite){
+	alpha[s] ~ dnorm(0,tauS) 
+	phi[s] ~ dnorm(phi0,tauP) 
+}
+# Variance params for site effect (and/or acoustic instrument)
+tauS <- pow(sigS,-2) 
+sigS ~ dt(0, 1/2.5^2 ,1) T(0,) # half cauchy(0, 2.5) prior (Gelman et al., 2008)
+tauP <- pow(sigP,-2) 
+sigP ~ dt(0, 1 ,1) T(0,) # half cauchy(0, 1) prior (Gelman et al., 2008)
+}

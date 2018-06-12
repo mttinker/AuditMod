@@ -32,6 +32,8 @@ Detect[ii] = 1
 df$Detect =Detect 
 df$flux_sens2 = df$flux_sensitive^2
 df$flux_lev_intxn = df$flux_sensitive*df$level_absolute
+NobsFilterLoc = which(df$location=="NBOG1" | df$location=="ULP8")
+
 RecrdsH = which(df$prob>=0.95)
 RecrdsL = which(df$prob<0.95)
 df1 = df
@@ -66,7 +68,7 @@ results <- foreach(q = 1:ncores) %dopar% {
   iii = sample(Nobs,Naudit,replace = FALSE)
   # Fit logistic model of realized probability vs predicted prob given machine learning prediction
   # (with signal quality metrics as co-variates)
-  mod1 <- glm(Detect ~ prob + flux + flux_sensitive + flux_sens2 + level + level_absolute + click + burst, 
+  mod1 <- glm(Detect ~ prob + flux + flux_sensitive + flux_sens2 + level + level_absolute + click + burst + location, 
               data=df[iii,], family=binomial(link="logit"))
   # summary(mod1)
   preddat <- predict(mod1, newdata=df, se.fit=TRUE)
