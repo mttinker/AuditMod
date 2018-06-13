@@ -53,8 +53,9 @@ Sitelist = data.frame(Site = Locs, SiteN = seq(1,Nsite))
 # Fit model of actual probability vs predicted prob given machine learning prediction
 rm(site,Detect)
 save(df,Sitelist,Outcomes,ratings,Nsite,Nobs,file="Sample_raw_dat.rdata")
+
 # Model for ALL sites --------------------------------------------------------------
-mod1 <- glm(Detect ~ prob + flux + flux_sensitive + flux_sens2 + level_absolute + click + burst , 
+mod1 <- glm(Detect ~ prob + flux_sensitive + level_absolute + click + burst , 
             data=df, family=binomial(link="logit"))
 summary(mod1)
 preddat <- predict(mod1, newdata=df, se.fit=TRUE)
@@ -84,6 +85,7 @@ nsamp = 5000
 reps = 500
 Naudit = 1500
 site = numeric(length = Nobs)
+par(mfrow=c(2,2))
 for (s in 1:Nsite){
   site[which(df1$location==Locs[s])] = s
   df = df1[which(df1$location==Locs[s]),]

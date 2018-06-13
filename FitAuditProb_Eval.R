@@ -27,6 +27,10 @@ Lgt_Prob_reps = -8 + alpha[,siteN] + tmp + t(X%*%t(B))
 rm(tmp)
 Lgt_Prob_Mn = colMeans(Lgt_Prob_reps)
 Lgt_Prob_sd = apply(Lgt_Prob_reps, 2, sd)
+Expect_Prob = data.frame(Lgt_Prob_Mn=Lgt_Prob_Mn,Lgt_Prob_sd=Lgt_Prob_sd,
+                         EstProb = inv.logit(Lgt_Prob_Mn),
+                         site = siteN,DNNprob=DNNprob,
+                         Detect=Detect)
 par(mfrow=c(2,1))
 ii = which(Detect==1); ii = ii[1]
 plot(density(inv.logit(Lgt_Prob_reps[,ii])),main= "ExampleA: 2sec interval with Detection = 1, Estimated Prob",
