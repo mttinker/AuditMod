@@ -1,0 +1,33 @@
+model{
+# Logit model for observed detections
+for (j in 1:Nobs){
+	y[j] ~ dbern(y.hat[i])	
+    y.hat[i] <- max(0, min(1,P[obs[j]]))
+}	
+for (i in 1:Nsamp){	
+	lgDNN[i] ~ dnorm(ilogit(),tau[site[i]])
+	ElgDNN[i] <- alpha[site[i]] + phi[site[i]]*lgP[i] + inprod(B, X[i,])
+	P[i] <- ilogit(lgP[i]) # True Prop of call detection this sample: latent var
+	lgP[i] ~ dunif(-12,12) # Uniform prior: logit(P[i]) for this sample
+}
+# Priors
+# Fixed effect params for signal quality variables , X_j
+for (b in 1:Neff){
+      B[b] ~ dt(0, tauB[b], 1) # cauchy prior (Gelman et al., 2008)
+}
+# Site-specific effects for intercept and slope of DNNprob
+for (s in 1:Nsite){
+	alpha[s] ~ dnorm(alph0,tauS) T(-10,10)
+	phi[s] ~ dnorm(phi0,tauP) T(0,20)
+	tau[s] <- pow(sig[s],-2) 
+	sig[s] ~ dt(0, 1/2.5^2 ,1) T(0,10) # half cauchy(0, 2.5) prior (Gelman et al., 2008)
+}
+# HyperPriors for intcpt and slope of fxn "Machine Learning" DNNprob ~ TrueProb 
+alph0 ~ dt(0, 1/5^2, 1) # cauchy prior (Gelman et al., 2008)
+phi0 ~ dt(0, 1/2.5^2 ,1) T(0,5) # half cauchy(0, 1) prior (Gelman et al., 2008)
+# Variance params for site effect (and/or acoustic instrument)
+tauS <- pow(sigS,-2) 
+sigS ~ dt(0, 1/2.5^2 ,1) T(0,10) # half cauchy(0, 2.5) prior (Gelman et al., 2008)
+tauP <- pow(sigP,-2) 
+sigP ~ dt(0, 1 ,1) T(0,5) # half cauchy(0, 1) prior (Gelman et al., 2008)
+}

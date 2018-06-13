@@ -10,8 +10,8 @@ require(parallel)
 require(doParallel)
 require(ggplot2)
 library(gridExtra)
-load("Sample_raw_dat.rdata")
-nAuditsamps = c(500) # *** MUST BE LESS THAN Nobs/Nsite, or else set to "ALL" 
+load("Sample_raw_dat7s.rdata")
+nAuditsamps = c(1000) # *** MUST BE LESS THAN Nobs/Nsite, or else set to "ALL" 
 fitmodel = "MCMCprobdetect.jags" # JAGS file containing model to be solved
 savename = paste0("fitAuditProb_Results_",nAuditsamps,"_AudPerSite.rdata")
 attach(df)
@@ -34,6 +34,8 @@ if (nAuditsamps!="ALL"){
 }else{
   Nobs1 = Nobs
 }
+lgDNN = pmax(-15,logit(DNNprob))
+hist(lgDNN)
 # Priors and initial values (to speed up fitting - can be set more vague or no inits)
 # LowB = c(4, .001,-1.5,-3,1)
 # HighB= c(6, .005,-0.5,-1,3)
@@ -53,7 +55,7 @@ params <- c("sigS","sigP","B","phi0","phi","alpha") # N Dispers
 
 nsamples <- 500
 nt <- 1
-nb <- 5000
+nb <- 2000
 cores = detectCores()
 ncore = min(20,cores-1)
 nc <- ncore
@@ -120,8 +122,8 @@ save.image(file=savename)
 par(mfrow=c(1,1))
 ## Estmate error for Audited detection vs estimate prob by site -------------------
 df1 = df
-sampTS = 3
-nsamp = 1000
+sampTS = 5
+nsamp = 100
 sampH = round(.33*nsamp)
 sampL = nsamp-sampH
 reps = 5000
@@ -135,8 +137,8 @@ for (s in 1:Nsite){
   df$lgtprobfit = Expect_Prob$Lgt_Prob_Mn[iii]
   df$lgtprobse = Expect_Prob$Lgt_Prob_sd[iii]
   df$probfit = Expect_Prob$EstProb[iii]
-  RecrdsH = which(df$prob>=0.95)
-  RecrdsL = which(df$prob<0.95)
+  RecrdsH = which(df$prob>=0.95); ix = which((RecrdsH+sampTS)<length(iii)); RecrdsH=RecrdsH[ix]
+  RecrdsL = which(df$prob<0.95); ix = which((RecrdsL+sampTS)<length(iii)); RecrdsL=RecrdsL[ix]
   SimsampT1 = matrix(data=0,nrow = sampH, ncol = sampTS)
   SimsampE1 = matrix(data=0,nrow = sampH, ncol = sampTS) 
   SimsampT2 = matrix(data=0,nrow = sampL, ncol = sampTS)
@@ -146,15 +148,15 @@ for (s in 1:Nsite){
   CallsT= numeric(length = reps)
   CallsE= numeric(length = reps)
   for (i in 1:reps){
+    ii = sample(RecrdsH,sampH,replace = TRUE)
     for (j in 1:sampTS){
-      ii = sample(RecrdsH,sampH,replace = TRUE)
-      SimsampT1[,j] = df$Detect[ii]
-      SimsampE1[,j] = inv.logit(rnorm(sampH,df$lgtprobfit[ii],df$lgtprobse[ii]))
+      SimsampT1[,j] = df$Detect[ii+j-1]
+      SimsampE1[,j] = inv.logit(rnorm(sampH,df$lgtprobfit[ii+j-1],df$lgtprobse[ii+j-1]))
     }
+    ii = sample(RecrdsL,sampL,replace = TRUE)
     for (j in 1:sampTS){
-      ii = sample(RecrdsL,sampL,replace = TRUE)
-      SimsampT2[,j] = df$Detect[ii]
-      SimsampE2[,j] = inv.logit(rnorm(sampL,df$lgtprobfit[ii],df$lgtprobse[ii]))
+      SimsampT2[,j] = df$Detect[ii+j-1]
+      SimsampE2[,j] = inv.logit(rnorm(sampL,df$lgtprobfit[ii+j-1],df$lgtprobse[ii+j-1]))
     }  
     SimsampT = rbind(SimsampT1,SimsampT2)
     SimsampE = rbind(SimsampE1,SimsampE2)

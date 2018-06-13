@@ -52,7 +52,7 @@ df$site = site
 Sitelist = data.frame(Site = Locs, SiteN = seq(1,Nsite))
 # Fit model of actual probability vs predicted prob given machine learning prediction
 rm(site,Detect)
-save(df,Sitelist,Outcomes,ratings,Nsite,Nobs,file="Sample_raw_dat.rdata")
+save(df,Sitelist,Outcomes,ratings,Nsite,Nobs,file="Sample_raw_dat7s.rdata")
 
 # Model for ALL sites --------------------------------------------------------------
 mod1 <- glm(Detect ~ prob + flux_sensitive + level_absolute + click + burst , 
