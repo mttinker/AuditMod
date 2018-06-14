@@ -1,5 +1,5 @@
 # Fit Bayesian model for probability of a call from raw data using sample of audited data
-# Load libraries -------------------------------------------------------------
+# Load librar ies -------------------------------------------------------------
 require(gtools)
 require(lattice)
 require(coda)
@@ -122,6 +122,16 @@ par(mfrow=c(1,1))
 #
 save.image(file=savename)
 ## Estmate error for Audited detection vs estimate prob by site -------------------
+# NOTE: variance of a single prob value, from logit variance: 
+#  let mu = logit(P), varLP be variance of logit(P) (ie sigma^2 if sigma is sd of logit(P))
+#   var_P = ((exp(mu)/(1+exp(mu))^2)^2)*varLP   
+# ALSO, unbiased estimate of mean P (back-transformed from logit):
+#    Phat = inv.logit(mu)-0.5*( exp(mu)*(exp(mu)-1)/(1+exp(mu))^3)*varLP
+# TO CALC SUM of P vals
+#   Var(sumP) = sum(var_P) 
+#     SO, to calc sd of summed P_i vals (e.g. expected mean number calls for 30 samples)
+#   sd_SumP = sqrt(sum(var_P)) where var_P is calculated as above
+# 
 df1 = df
 sampTS = 5
 nsamp = 100

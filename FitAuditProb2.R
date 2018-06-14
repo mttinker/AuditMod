@@ -49,7 +49,7 @@ jags.data <- list(y=y,Nobs=Nobs1,Nsamp=Nobs,Nsite=Nsite,site=siteN,X=X,
 #
 inits <- function() list(sigA = runif(1,1.5,2.5),sigH = runif(1,.2,.4)) #,B = runif(Neff, LowB, HighB) B0 = runif(1,-11,-9), 
 #
-params <- c("sigA","sigH","sigP","sigS","B","phi0","alph0","lgP0","lgP","phi","alpha","lgP") # N Dispers
+params <- c("sigA","sigH","sigP","sigS","B","phi0","alph0","lgPs","phi","alpha","lgP") # N Dispers
 
 nsamples <- 250
 nt <- 1
@@ -79,9 +79,9 @@ vn = colnames(post)
 for (i in 3:nc){
   post = rbind(post, out$mcmc[[i]])
 }
-sumstats = summary(out, vars = c("sigA","sigH","sigP","sigS","B","phi0","alph0","lgP0","lgP","phi","alpha"))
+sumstats = summary(out, vars = c("sigA","sigH","sigP","sigS","B","phi0","alph0","lgPs","phi","alpha"))
 #
-plot(out, vars = c("sigA","sigH","sigP","sigS","B","phi0","alph0","lgP0","lgP","phi","alpha"), 
+plot(out, vars = c("sigA","sigH","sigP","sigS","B","phi0","alph0","lgPs","phi","alpha"), 
      plot.type = c("trace", "histogram"), layout = c(1,2))
 # ----
 

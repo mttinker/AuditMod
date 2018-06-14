@@ -9,7 +9,7 @@ for (i in 1:Nsamp){
 	# lgDNN[i] ~ dnorm(ElgDNN[i],tau[site[i]])
 	ElgDNN[i] <- alpha[site[i]] + phi[site[i]]*P[i] + inprod(B, X[i,])
 	P[i] <- ilogit(lgP[i]) # True Prob of call detection this sample: latent var
-	lgP[i] ~ dnorm(lgP[site[i]],tauS[site[i]]) # Uniform prior: logit(P[i]) for this 2s sample
+	lgP[i] ~ dnorm(lgPs[site[i]],tauS[site[i]]) # Uniform prior: logit(P[i]) for this 2s sample
 }
 # Priors
 # Fixed effect params for signal quality variables , X_j
@@ -20,7 +20,7 @@ for (b in 1:Neff){
 for (s in 1:Nsite){
 	alpha[s] ~ dnorm(alph0,tauA) T(-30,30)
 	phi[s] ~ dnorm(phi0,tauH) T(0,50)
-	lgP[s] ~ dnorm(lgP0,tauP) T(-12,12)
+	lgPs[s] ~ dnorm(lgP0,tauP) T(-12,12)
 	sigS[s] ~ dt(0, 1/7^2 ,1) T(0,20) # half cauchy(0, 2.5) prior (Gelman et al., 2008)
 	tauS[s] <- pow(sigS[s],-2) 
 	# 
