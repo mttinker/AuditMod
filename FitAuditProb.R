@@ -13,7 +13,7 @@ library(gridExtra)
 load("Sample_raw_dat7s.rdata")
 nAuditsamps = c(1000) # *** MUST BE LESS THAN Nobs/Nsite, or else set to "ALL" 
 fitmodel = "MCMCprobdetect.jags" # JAGS file containing model to be solved
-savename = paste0("fitAuditProb_Results7_",nAuditsamps,"_AudPerSite.rdata")
+savename = paste0("./files/fitAuditProb_Results7_",nAuditsamps,"_AudPerSite.rdata")
 attach(df)
 X = cbind(flux_sensitive,level_absolute,click,burst)
 DNNprob = prob
