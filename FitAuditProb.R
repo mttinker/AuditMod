@@ -1,3 +1,5 @@
+FitAuditProb <- function(nAuditsamps,df,Sitelist){
+# nAuditsamps = c(1000) # *** MUST BE LESS THAN Nobs/Nsite, or else set to "ALL" 
 # Fit Bayesian model for probability of a call from raw data using sample of audited data
 # Load librar ies -------------------------------------------------------------
 require(gtools)
@@ -10,10 +12,12 @@ require(parallel)
 require(doParallel)
 require(ggplot2)
 library(gridExtra)
-load("Sample_raw_dat7s.rdata")
-nAuditsamps = c(1000) # *** MUST BE LESS THAN Nobs/Nsite, or else set to "ALL" 
+# load("Sample_raw_dat7s.rdata")
+Nobs = dim(df)[1]
+Nsite = dim(Sitelist)[1]
 fitmodel = "MCMCprobdetect.jags" # JAGS file containing model to be solved
 savename = paste0("./files/fitAuditProb_Results7_",nAuditsamps,"_AudPerSite.rdata")
+savename2 = paste0("./files/fitAuditProb_Small_7s_",nAuditsamps,"_AudPerSite.rdata")
 attach(df)
 X = cbind(flux_sensitive,level_absolute,click,burst)
 DNNprob = prob
@@ -55,7 +59,7 @@ params <- c("sigA","sigH","B","phi0","alph0","phi","alpha") # N Dispers
 
 nsamples <- 500
 nt <- 1
-nb <- 2000
+nb <- 3000
 cores = detectCores()
 ncore = min(20,cores-1)
 nc <- ncore
@@ -83,10 +87,11 @@ for (i in 3:nc){
 sumstats = summary(out)
 vn = row.names(sumstats)
 #
-plot(out, vars = c("sigA","sigH","phi0","alph0","B","alpha","phi"), plot.type = c("trace", "histogram"), layout = c(1,2))
+plot(out, vars = c("sigA","sigH","phi0","alph0","B","alpha","phi"), 
+     plot.type = c("trace", "histogram"), layout = c(1,2))
 # ----
 reps = dim(post)[1]
-Nsmp = 1000
+Nsmp = 5000
 attach(df)
 X = cbind(flux_sensitive,level_absolute,click,burst)
 DNNprob = prob
@@ -95,6 +100,8 @@ siteN = site
 detach(df)
 Detect = y
 iii = sample(reps,Nsmp)
+# Genertate expected Logit_P values and uncertainty (means and sd) from posterior
+#  THIS CODE OR SOMETHING LIKE IT CAN BE APPLIED TO ALL 2S WINDOWS:
 alpha = post[iii,startsWith(vn,"alpha")]
 phi = post[iii,startsWith(vn,"phi[")]  
 B = post[iii,startsWith(vn,"B")]  
@@ -103,12 +110,15 @@ tmp = matrix(nrow = Nsmp,ncol = Nobs)
 for (i in 1:Nsmp){
   tmp[i,] = DNNprob_reps[i,]*phi[i,siteN]
 }
-Lgt_Prob_reps = -8 + alpha[,siteN] + tmp + t(X%*%t(B))
+Lgt_Prob_reps = alpha[,siteN] + tmp + t(X%*%t(B))
 rm(tmp)
 Lgt_Prob_Mn = colMeans(Lgt_Prob_reps)
-Lgt_Prob_sd = apply(Lgt_Prob_reps, 2, sd)
+Lgt_Prob_sd = apply(Lgt_Prob_reps, 2, sd); 
+# Convert from Logits to probabilities with variances using delta method 
+EstProb_sd = ((exp(Lgt_Prob_Mn)/(1+exp(Lgt_Prob_Mn))^2)^2)*Lgt_Prob_sd^2 
+EstProb = inv.logit(Lgt_Prob_Mn)-0.5*( exp(Lgt_Prob_Mn)*(exp(Lgt_Prob_Mn)-1)/(1+exp(Lgt_Prob_Mn))^3)*Lgt_Prob_sd^2
 Expect_Prob = data.frame(Lgt_Prob_Mn=Lgt_Prob_Mn,Lgt_Prob_sd=Lgt_Prob_sd,
-                         EstProb = inv.logit(Lgt_Prob_Mn),
+                         EstProb = EstProb, EstProb_sd = EstProb_sd,
                          site = siteN,DNNprob=DNNprob,
                          Detect=Detect)
 par(mfrow=c(2,1))
@@ -120,78 +130,12 @@ plot(density(inv.logit(Lgt_Prob_reps[,ii])),main= "ExampleB: 2sec interval with 
      xlab = "Probability of Call Detection",ylab = "Density")
 par(mfrow=c(1,1))
 #
-save.image(file=savename)
-## Estmate error for Audited detection vs estimate prob by site -------------------
-# NOTE: variance of a single prob value, from logit variance: 
-#  let mu = logit(P), varLP be variance of logit(P) (ie sigma^2 if sigma is sd of logit(P))
-#   var_P = ((exp(mu)/(1+exp(mu))^2)^2)*varLP   
-# ALSO, unbiased estimate of mean P (back-transformed from logit):
-#    Phat = inv.logit(mu)-0.5*( exp(mu)*(exp(mu)-1)/(1+exp(mu))^3)*varLP
-# TO CALC SUM of P vals
-#   Var(sumP) = sum(var_P) 
-#     SO, to calc sd of summed P_i vals (e.g. expected mean number calls for 30 samples)
-#   sd_SumP = sqrt(sum(var_P)) where var_P is calculated as above
-# 
-df1 = df
-sampTS = 5
-nsamp = 100
-sampH = round(.25*nsamp)
-sampL = nsamp-sampH
-reps = 5000
-Naudit = round(Nobs1/Nsite)
-site = numeric(length = Nobs)
-par(mfrow=c(2,2))
-for (s in 1:Nsite){
-  iii = which(df1$location==Sitelist[s,1])
-  site[iii] = s
-  df = df1[iii,]
-  df$lgtprobfit = Expect_Prob$Lgt_Prob_Mn[iii]
-  df$lgtprobse = Expect_Prob$Lgt_Prob_sd[iii]
-  df$probfit = Expect_Prob$EstProb[iii]
-  RecrdsH = which(df$prob>=0.95); ix = which((RecrdsH+sampTS)<length(iii)); RecrdsH=RecrdsH[ix]
-  RecrdsL = which(df$prob<0.95); ix = which((RecrdsL+sampTS)<length(iii)); RecrdsL=RecrdsL[ix]
-  SimsampT1 = matrix(data=0,nrow = sampH, ncol = sampTS)
-  SimsampE1 = matrix(data=0,nrow = sampH, ncol = sampTS) 
-  SimsampT2 = matrix(data=0,nrow = sampL, ncol = sampTS)
-  SimsampE2  = matrix(data=0,nrow = sampL, ncol = sampTS)
-  EstBias = numeric(length = reps)
-  EstErr = numeric(length = reps)
-  CallsT= numeric(length = reps)
-  CallsE= numeric(length = reps)
-  for (i in 1:reps){
-    ii = sample(RecrdsH,sampH,replace = TRUE)
-    for (j in 1:sampTS){
-      SimsampT1[,j] = df$Detect[ii+j-1]
-      SimsampE1[,j] = inv.logit(rnorm(sampH,df$lgtprobfit[ii+j-1],df$lgtprobse[ii+j-1]))
-    }
-    ii = sample(RecrdsL,sampL,replace = TRUE)
-    for (j in 1:sampTS){
-      SimsampT2[,j] = df$Detect[ii+j-1]
-      SimsampE2[,j] = inv.logit(rnorm(sampL,df$lgtprobfit[ii+j-1],df$lgtprobse[ii+j-1]))
-    }  
-    SimsampT = rbind(SimsampT1,SimsampT2)
-    SimsampE = rbind(SimsampE1,SimsampE2)
-    # tmp1 = fitdist(rowSums(SimsampT),"nbinom")
-    # tmp2 = fitdist(rowSums(SimsampE),"lnorm")
-    # CallsT[i] = tmp1$estimate[2] 
-    # CallsE[i] = exp(tmp2$estimate[1] + tmp2$estimate[2]^2/2)
-    CallsT[i] = mean(rowSums(SimsampT))/sampTS*30
-    CallsE[i] = mean(rowSums(SimsampE))/sampTS*30
-    EstBias[i] = CallsE[i] - CallsT[i]
-    EstErr[i] = (CallsE[i] - CallsT[i])^2
-  }
-  MnEstBias = mean(EstBias)
-  EstStdErr = sqrt(sum(EstErr)/(reps-1)) 
-  tmp = density(CallsT); maxy = max(tmp$y)
-  plot(density(c(CallsT,CallsE)),type="n", ylim=c(0,1.5*maxy),
-       main = paste0("Site ",Sitelist[s,1], "N Audits = ",format(Naudit,digits = 0),
-                     ", StdErr = ", format(EstStdErr,digits = 3),
-                     ", Mean Bias = ", format(MnEstBias,digits = 3)),
-       xlab="Estimated Mean Call Rate", ylab="Probability Density")
-  lines(density(CallsT),col="blue")
-  lines(density(CallsE),col="red")
-  legend(mean(CallsT), maxy, legend=c("Estimate from Audited Detections",
-                                      "Probability-based Estimates"),
-         col=c("blue", "red"), lty=1, cex=0.8)
+save(df,Sitelist,Expect_Prob,out,post,sumstats,nAuditsamps,file=savename) 
+save(df,Sitelist,Expect_Prob,sumstats,nAuditsamps,file=savename2) 
+#
+result <- list(NAudits=nAuditsamps,
+               sumstats = sumstats,
+               savename = savename,
+               savenameSH = savename2)
+return(result)
 }
-df = df1
