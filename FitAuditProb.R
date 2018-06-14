@@ -13,7 +13,7 @@ library(gridExtra)
 load("Sample_raw_dat7s.rdata")
 nAuditsamps = c(1000) # *** MUST BE LESS THAN Nobs/Nsite, or else set to "ALL" 
 fitmodel = "MCMCprobdetect.jags" # JAGS file containing model to be solved
-savename = paste0("fitAuditProb_Results_",nAuditsamps,"_AudPerSite.rdata")
+savename = paste0("fitAuditProb_Results7_",nAuditsamps,"_AudPerSite.rdata")
 attach(df)
 X = cbind(flux_sensitive,level_absolute,click,burst)
 DNNprob = prob
@@ -48,10 +48,10 @@ tauPri = 1/sigPri^2
 #
 jags.data <- list(y=y,Nobs=Nobs1,Nsite=Nsite,site=siteN,X=X,DNNprob=DNNprob,Neff=Neff,tauB=tauPri) # 
 #
-inits <- function() list(sigS = runif(1,1.5,2.5),sigP = runif(1,.2,.4),
-                         phi0 = runif(1,4,6)) #,B = runif(Neff, LowB, HighB) B0 = runif(1,-11,-9), 
+inits <- function() list(sigA = runif(1,1.5,2.5),sigH = runif(1,.2,.4),
+                         phi0 = runif(1,4,6), alph0 = runif(1,-6,-5)) #,B = runif(Neff, LowB, HighB) B0 = runif(1,-11,-9), 
 #
-params <- c("sigS","sigP","B","phi0","phi","alpha") # N Dispers
+params <- c("sigA","sigH","B","phi0","alph0","phi","alpha") # N Dispers
 
 nsamples <- 500
 nt <- 1
@@ -83,7 +83,7 @@ for (i in 3:nc){
 sumstats = summary(out)
 vn = row.names(sumstats)
 #
-plot(out, vars = c("sigS","sigP","phi0","B","alpha","phi"), plot.type = c("trace", "histogram"), layout = c(1,2))
+plot(out, vars = c("sigA","sigH","phi0","alph0","B","alpha","phi"), plot.type = c("trace", "histogram"), layout = c(1,2))
 # ----
 reps = dim(post)[1]
 Nsmp = 1000
@@ -118,13 +118,14 @@ plot(density(inv.logit(Lgt_Prob_reps[,ii])),main= "ExampleA: 2sec interval with 
 ii = which(Detect==0); ii = ii[1]
 plot(density(inv.logit(Lgt_Prob_reps[,ii])),main= "ExampleB: 2sec interval with Detection = 0, Estimated Prob",
      xlab = "Probability of Call Detection",ylab = "Density")
-save.image(file=savename)
 par(mfrow=c(1,1))
+#
+save.image(file=savename)
 ## Estmate error for Audited detection vs estimate prob by site -------------------
 df1 = df
 sampTS = 5
 nsamp = 100
-sampH = round(.33*nsamp)
+sampH = round(.25*nsamp)
 sampL = nsamp-sampH
 reps = 5000
 Naudit = round(Nobs1/Nsite)

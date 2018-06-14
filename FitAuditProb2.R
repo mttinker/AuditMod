@@ -11,9 +11,9 @@ require(doParallel)
 require(ggplot2)
 library(gridExtra)
 load("Sample_raw_dat7s.rdata")
-nAuditsamps = c(500) # *** MUST BE LESS THAN Nobs/Nsite, or else set to "ALL" 
-fitmodel = "MCMCprobdetect.jags" # JAGS file containing model to be solved
-savename = paste0("fitAuditProb_Results_",nAuditsamps,"_AudPerSite.rdata")
+nAuditsamps = c(1000) # *** MUST BE LESS THAN Nobs/Nsite, or else set to "ALL" 
+fitmodel = "MCMCprobdetect2.jags" # JAGS file containing model to be solved
+savename = paste0("fitAuditProb2_Results7_",nAuditsamps,"_AudPerSite.rdata")
 attach(df)
 X = cbind(flux_sensitive,level_absolute,click,burst)
 DNNprob = prob
@@ -27,12 +27,12 @@ if (nAuditsamps!="ALL"){
     iii = c(iii,sample(which(df$site==i),nAuditsamps,replace = FALSE))
   }
   y = y[iii]
-  obs = iii
+  obs = sort(iii)
   Nobs1 = length(iii)
 }else{
   Nobs1 = Nobs
 }
-lgDNN = pmax(-15,logit(DNNprob))
+lgDNN = logit(pmax(.000001,pmin(.999999,DNNprob)))
 hist(lgDNN)
 # Priors and initial values (to speed up fitting - can be set more vague or no inits)
 # LowB = c(4, .001,-1.5,-3,1)
@@ -44,13 +44,14 @@ tauPri = 1/sigPri^2
 # where eps = either actual random effect for site i, OR random effect from sigma
 # Set up Jags inputs -----------------------------------------------------
 #
-jags.data <- list(y=y,Nobs=Nobs1,Nsamp=Nobs,Nsite=Nsite,site=siteN,X=X,lgDNN=lgDNN,Neff=Neff,tauB=tauPri) # 
+jags.data <- list(y=y,Nobs=Nobs1,Nsamp=Nobs,Nsite=Nsite,site=siteN,X=X,
+                  obs=obs,lgDNN=lgDNN,Neff=Neff,tauB=tauPri) # 
 #
-inits <- function() list(sigS = runif(1,1.5,2.5),sigP = runif(1,.2,.4)) #,B = runif(Neff, LowB, HighB) B0 = runif(1,-11,-9), 
+inits <- function() list(sigA = runif(1,1.5,2.5),sigH = runif(1,.2,.4)) #,B = runif(Neff, LowB, HighB) B0 = runif(1,-11,-9), 
 #
-params <- c("sigS","sigP","B","phi0","phi","alpha","P") # N Dispers
+params <- c("sigA","sigH","sigP","sigS","B","phi0","alph0","lgP0","lgP","phi","alpha","lgP") # N Dispers
 
-nsamples <- 500
+nsamples <- 250
 nt <- 1
 nb <- 2000
 cores = detectCores()
@@ -74,40 +75,38 @@ out <- run.jags(data = jags.data,
 #
 stopCluster(cl)
 post = rbind(out$mcmc[[1]], out$mcmc[[2]])
+vn = colnames(post)
 for (i in 3:nc){
   post = rbind(post, out$mcmc[[i]])
 }
-sumstats = summary(out)
-vn = row.names(sumstats)
+sumstats = summary(out, vars = c("sigA","sigH","sigP","sigS","B","phi0","alph0","lgP0","lgP","phi","alpha"))
 #
-plot(out, vars = c("sigS","sigP","phi0","B","alpha","phi"), plot.type = c("trace", "histogram"), layout = c(1,2))
+plot(out, vars = c("sigA","sigH","sigP","sigS","B","phi0","alph0","lgP0","lgP","phi","alpha"), 
+     plot.type = c("trace", "histogram"), layout = c(1,2))
 # ----
+
+Detect = df$Detect
 reps = dim(post)[1]
 Nsmp = 1000
-attach(df)
-X = cbind(flux_sensitive,level_absolute,click,burst)
-DNNprob = prob
-y = Detect
-siteN = site
-detach(df)
-Detect = y
 iii = sample(reps,Nsmp)
 alpha = post[iii,startsWith(vn,"alpha")]
 phi = post[iii,startsWith(vn,"phi[")]  
 B = post[iii,startsWith(vn,"B")]  
-DNNprob_reps = matrix(rep(DNNprob,Nsmp),byrow = TRUE,ncol = Nobs)
-tmp = matrix(nrow = Nsmp,ncol = Nobs)
-for (i in 1:Nsmp){
-  tmp[i,] = DNNprob_reps[i,]*phi[i,siteN]
-}
-Lgt_Prob_reps = -8 + alpha[,siteN] + tmp + t(X%*%t(B))
-rm(tmp)
+Lgt_Prob_reps = post[iii,startsWith(vn,"lgP")]  
+# 
+# DNNprob_reps = matrix(rep(DNNprob,Nsmp),byrow = TRUE,ncol = Nobs)
+# tmp = matrix(nrow = Nsmp,ncol = Nobs)
+# for (i in 1:Nsmp){
+#   tmp[i,] = DNNprob_reps[i,]*phi[i,siteN]
+# }
+# Lgt_Prob_reps = -8 + alpha[,siteN] + tmp + t(X%*%t(B))
+# rm(tmp)
 Lgt_Prob_Mn = colMeans(Lgt_Prob_reps)
 Lgt_Prob_sd = apply(Lgt_Prob_reps, 2, sd)
 Expect_Prob = data.frame(Lgt_Prob_Mn=Lgt_Prob_Mn,Lgt_Prob_sd=Lgt_Prob_sd,
-                         EstProb = inv.logit(Lgt_Prob_Mn),
+                         EstProb = inv.logit(Lgt_Prob_Mn),Detect=Detect,
                          site = siteN,DNNprob=DNNprob,
-                         Detect=Detect)
+                         lgDNN=lgDNN)
 par(mfrow=c(2,1))
 ii = which(Detect==1); ii = ii[1]
 plot(density(inv.logit(Lgt_Prob_reps[,ii])),main= "ExampleA: 2sec interval with Detection = 1, Estimated Prob",
@@ -115,13 +114,14 @@ plot(density(inv.logit(Lgt_Prob_reps[,ii])),main= "ExampleA: 2sec interval with 
 ii = which(Detect==0); ii = ii[1]
 plot(density(inv.logit(Lgt_Prob_reps[,ii])),main= "ExampleB: 2sec interval with Detection = 0, Estimated Prob",
      xlab = "Probability of Call Detection",ylab = "Density")
-save.image(file=savename)
 par(mfrow=c(1,1))
+#
+save.image(file=savename)
 ## Estmate error for Audited detection vs estimate prob by site -------------------
 df1 = df
 sampTS = 5
 nsamp = 100
-sampH = round(.33*nsamp)
+sampH = round(.25*nsamp)
 sampL = nsamp-sampH
 reps = 5000
 Naudit = round(Nobs1/Nsite)
