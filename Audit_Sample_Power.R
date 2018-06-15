@@ -1,4 +1,6 @@
 # Evaluate results of different sample sizes of audited samples (power analysis)
+library(ggplot2)
+library(reshape2)
 Text1 = c("./files/fitAuditProb_Small_7s_")
 Text2 = c("_AudPerSite.rdata")
 AuditSzs = c(100,300,500,750,1000)
@@ -9,7 +11,7 @@ for (f in 1:NSS){
 }
 load(FileList[1])
 Nsite = dim(Sitelist)[1]
-MnEstBias = matrix(nrow = NSS,ncol = Nsite)
+MnEstDev = matrix(nrow = NSS,ncol = Nsite)
 EstStdErr = matrix(nrow = NSS,ncol = Nsite)
 for (f in 1:NSS){
   load(FileList[f])
@@ -35,7 +37,7 @@ for (f in 1:NSS){
     SimsampE1 = matrix(data=0,nrow = sampH, ncol = sampTS) 
     SimsampT2 = matrix(data=0,nrow = sampL, ncol = sampTS)
     SimsampE2  = matrix(data=0,nrow = sampL, ncol = sampTS)
-    EstBias = numeric(length = reps)
+    EstDev = numeric(length = reps)
     EstErr = numeric(length = reps)
     CallsT= numeric(length = reps)
     CallsE= numeric(length = reps)
@@ -58,16 +60,16 @@ for (f in 1:NSS){
       # CallsE[i] = exp(tmp2$estimate[1] + tmp2$estimate[2]^2/2)
       CallsT[i] = mean(rowSums(SimsampT))/sampTS*30
       CallsE[i] = mean(rowSums(SimsampE))/sampTS*30
-      EstBias[i] = CallsE[i] - CallsT[i]
+      EstDev[i] = CallsE[i] - CallsT[i]
       EstErr[i] = (CallsE[i] - CallsT[i])^2
     }
-    MnEstBias[f,s] = abs(mean(EstBias))
+    MnEstDev[f,s] = abs(mean(EstDev))
     EstStdErr[f,s] = sqrt(sum(EstErr)/(reps-1)) 
     tmp = density(CallsT); maxy = max(tmp$y)
     plot(density(c(CallsT,CallsE)),type="n", ylim=c(0,1.5*maxy),
          main = paste0("Site ",Sitelist[s,1], "N Audits = ",format(Naudit,digits = 0),
                        ", StdErr = ", format(EstStdErr[f,s],digits = 3),
-                       ", Mean Bias = ", format(MnEstBias[f,s],digits = 3)),
+                       ", Mean Dev = ", format(MnEstDev[f,s],digits = 3)),
          xlab="Estimated Mean Call Rate", ylab="Probability Density")
     lines(density(CallsT),col="blue")
     lines(density(CallsE),col="red")
@@ -77,27 +79,32 @@ for (f in 1:NSS){
   }
 }
 par(mfrow=c(1,1))
-MeanBias = rowMeans(MnEstBias)
-dfBias = data.frame(x = AuditSzs, y = MeanBias)
-lgY = log(MeanBias); lgX = log(AuditSzs); 
+
+SiteDev = as.data.frame(cbind(AuditSzs,MnEstDev)); colnames(SiteDev) = c("N_Audits",as.character(Sitelist$Site))
+SiteErr = as.data.frame(cbind(AuditSzs,EstStdErr)); colnames(SiteErr) = c("N_Audits",as.character(Sitelist$Site))
+
+MeanDev = rowMeans(MnEstDev)
+MeanErr = rowMeans(EstStdErr)
+dfDevMn = data.frame(x = AuditSzs, y = MeanDev)
+dfErrMm = data.frame(x = AuditSzs, y = MeanErr)
+lgY = log(MeanDev); lgX = log(AuditSzs); 
 fit1 = lm(lgY ~ lgX )
 # summary(fitExt)
 newdat = data.frame(lgX = log(seq(100,1000)))
 Prd = predict(fit1,newdat,se.fit = TRUE,
               interval = c("confidence"),level = 0.95)
 dfplt1 = data.frame(SampSize = seq(100,1000),
-                    MeanBias = exp(Prd$fit[,1]),
+                    MeanDev = exp(Prd$fit[,1]),
                     CILO = exp(Prd$fit[,2]),CIHI = exp(Prd$fit[,3]))
 plt1 = (ggplot(dfplt1, aes(x= SampSize))+
              geom_ribbon(aes(ymin=CILO,ymax=CIHI),alpha=0.3)+
-             geom_line(aes(y = MeanBias),size=1)+
-             geom_point(data = dfBias, aes(x=x,y=y)) +
+             geom_line(aes(y = MeanDev),size=1)+
+             geom_point(data = dfDevMn, aes(x=x,y=y),size=2) +
              xlab("Number of Audited Samples") +
-             ylab("Mean Bias, Bias in Call Rate by Audited Detections vs Predicted Probs") +
-             ggtitle("Bias in Call Rate by Audited Detections vs Predicted Probs"))
+             ylab("Mean Deviation, abs(Estimate_Audit - Estimate_Prob)") +
+             ggtitle("Deviation in Call Rate Estimates, Audited Detections vs Predicted Probs"))
 print(plt1)
 
-MeanErr = rowMeans(EstStdErr)
 dfErr = data.frame(x = AuditSzs, y = MeanErr)
 lgY = log(MeanErr); lgX = log(AuditSzs); 
 fit2 = lm(lgY ~ lgX )
@@ -113,6 +120,21 @@ plt2 = (ggplot(dfplt2, aes(x= SampSize))+
           geom_line(aes(y = MeanError),size=1)+
           geom_point(data = dfErr, aes(x=x,y=y)) +
           xlab("Number of Audited Samples") +
-          ylab("Mean Error") +
-          ggtitle("Std Error in Call Rates by Audited Detections vs Predicted Probs"))
+          ylab("Mean Standard Error") +
+          ggtitle("Std Error in Call Rate Estimates, Audited Detections vs Predicted Probs"))
 print(plt2)
+
+dfplt3 <- melt(SiteDev,  id.vars = 'N_Audits', variable.name = 'Site')
+plt3 = ggplot(dfplt3, aes(N_Audits,value)) + geom_line(aes(colour = Site)) +
+  xlab("Number of Audited Samples") +
+  ylab("Mean Deviation, abs(Estimate_Audit - Estimate_Prob)") +
+  ggtitle("Deviation in Call Rate Estimates by Site, Audited Detections vs Predicted Probs")
+print(plt3)
+
+dfplt4 <- melt(SiteErr,  id.vars = 'N_Audits', variable.name = 'Site')
+plt4 = ggplot(dfplt4, aes(N_Audits,value)) + geom_line(aes(colour = Site)) +
+  xlab("Number of Audited Samples") +
+  ylab("Mean Standard Error") +
+  ggtitle("Std Error in Call Rate Estimates by Site, Audited Detections vs Predicted Probs")
+print(plt4)
+
