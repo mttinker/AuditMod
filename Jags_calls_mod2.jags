@@ -1,0 +1,77 @@
+model{
+# Set Priors
+Cmean ~ dt(0, 1/30^2 ,1) T(0,50)# grand mean of log Call Rate, across all strata
+sigE ~ dt(0, 1/5^2 ,1) T(0,20)   # temporal variance term, averaged across sites
+theta ~ dnorm(0,.01)  # Effect of moon illumination (1 = full moon, -1 = new moon)
+
+sigT ~ dt(0, 1/5^2 ,1) T(0,20)   # temporal variance term, averaged across sites
+sigS ~ dt(0, 1/10^2 ,1) T(0,25)  # variance in call rate, sites within strata
+sigW ~ dt(0, 1/1^2 ,1) T(0,10)  # residual variance in call rate over weeks within site
+#
+tauT <- pow(sigT,-2)
+# tauE <- pow(sigE,-2)
+# tauN <- pow(sigN,-2)
+# tauS <- pow(sigS,-2)
+Vs <- sigS^2 	
+Vw <- sigW^2
+muW <- log(1/sqrt(1+Vw))
+tauW <- 1/(log(1+Vw))
+#
+# Temporal effect matrix, weeks x timesteps (15 min) 
+Temporal[1,1] ~ dunif(-8,-5) 
+Temporal[2,1] ~ dnorm(Temporal[1,1],tauT) T(-8,8)
+Temporal[1,2] ~ dnorm(Temporal[1,1],tauT) T(-8,8) 
+for (i in 3:NWeeks) {
+    diff.F[i] <- 2*Temporal[i-1,1]-Temporal[i-2,1]
+    Temporal[i,1] ~ dnorm(diff.F[i],tauT) T(-8,8)
+}
+for (i in 3:NTsteps) {
+    diff.H[i] <- 2*Temporal[1,i-1]-Temporal[1,i-2]
+    Temporal[1,i] ~ dnorm(diff.H[i],tauT) T(-8,8)
+}
+for (i in 2:NWeeks) {
+    for (j in 2:NTsteps) {
+       diff.T[i,j] <- (Temporal[i-1,j-1] + (Temporal[i,j-1]-Temporal[i-1,j-1]) 
+                       + (Temporal[i-1,j]-Temporal[i-1,j-1]))
+	   # diff.T[i,j] <- ifelse(TP[i,j]==1,max(1,diff.Tstar[i,j]),diff.Tstar[i,j])				
+       Temporal[i,j] ~ dnorm(diff.T[i,j],tauT) 
+    }
+}
+# Next loop ensures maximum of Temp matrix --> 1
+maxTmprl <- max(Temporal)
+for (i in 1:100){
+	TmprlMax[i] ~ dnorm(maxTmprl,4)
+}
+for(i in 1:NWeeks){
+    for (j in 1:NTsteps){
+	   Temp[i,j] <- ilogit(Temporal[i,j])
+	}
+}
+peakTemp <- 0.75
+# Calculate mean call rate "C" by strata
+muS <- log(Cmean/sqrt(1+Vs/Cmean^2))
+tauS <- 1/(log(1+ Vs/Cmean^2))
+## Calculate site-level mean call rate (Cs) accounting for site var
+for (i in 1:NSite){    
+    # Mean expected max call rate for site S     
+    # Csite[i] ~ dnorm(C[strat[i]],tauS) T(0,)  # Normal 
+    Csite[i] ~ dlnorm(muS,tauS) T(0,30)  # Lognormal
+    # Mean peak period call rate for site S
+    Cs[i] <- Csite[i]*peakTemp 
+    for(j in 1:NWeeks){
+		# Weekly variance within site: epsilon = error multiplier, mean of 1
+		eps[j,i] ~ dlnorm(muW,tauW)
+	}   
+ }
+ # mean peak period call rate across all sites 
+C <- mean(Cs[1:NSite])
+# Cycle through acoustic monitoring data for Observed Calls 
+for (i in 1:NObs){
+    # Mean expected detected calls per minute in the timestep (15min)
+	mu[i] <- max(.000001,min(.999999,Csite[SiteN[i]]*Temp[Wk[i],TS[i]]*exp(theta*Moon[i])*(1/30)*eps[Wk[i],SiteN[i]]))
+	logitmu[i] <- logit(mu[i])
+	tau[i] <- 1/((sigE/sqrt(N[i]))^2)
+	LgtProb[i] ~ dnorm(logitmu[i],tau[i])
+}
+}
+

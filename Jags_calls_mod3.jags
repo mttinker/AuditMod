@@ -1,0 +1,85 @@
+model{
+# Cycle through acoustic monitoring data for Estimated DNN probs  
+for (i in 1:NObs){
+    # Mean expected detected calls per 2s interval in this timestep (15min)
+	mu[i] <- Csite[SiteN[i]]*Temp[Wk[i],TS[i]]*exp(theta*Moon[i])*(1/30)
+	lgtDNNexp[i] <- phi*mu[i] + alpha[SiteN[i]] + B[1]*Flux[i] + B[2]*Flux2[i] + B[3]*LvAb[i] + B[4]*Clck[i] + B[5]*Brst[i] 
+	tau[i] <- 1/((sigE/sqrt(N[i]))^2)
+	LgtDNN[i] ~ dnorm(lgtDNNexp[i],tau[i])
+}
+# Cycle through acoustic monitoring data for sub-set of Audited # Calls per TS
+for (i in 1:NObsA){
+	# for Audited sub-set, mean expected number of calls (given cumulative recording time, in minutes)
+	muA[i] <- Csite[SiteNA[i]]*Temp[WkA[i],TSA[i]]*exp(theta*MoonA[i])*Minutes[i]
+    # Variance in detected calls (accounts for overdispersion)
+    vr[i] <- ifelse(muA[i]<0,0.0000001, muA[i] + (muA[i]^2)/Dispers)
+    p[i] <- max(0.00000001,1-(vr[i]-muA[i])/vr[i])
+    # Observed number calls recorded as neg binomial random variate
+    Calls[i] ~ dnegbin(p[i],Dispers)   
+}
+# Calculate mean call rate "C" 
+C <- mean(Cs[1:NSite])
+## Calculate site-level mean call rate (Cs) accounting for site var
+for (i in 1:NSite){    
+    # Mean expected max call rate for site S     
+    # Csite[i] ~ dnorm(C[strat[i]],tauS) T(0,)  # Normal 
+    Csite[i] ~ dlnorm(muS,tauS) T(0,30)  # Lognormal
+    # Mean peak period call rate for site S
+    Cs[i] <- Csite[i]*peakTemp 
+	# Random effect of site on DNN prob:
+	alpha[i] ~ dnorm(alph0,tauA)
+ }
+muS <- log(Cmean/sqrt(1+Vs/Cmean^2))
+tauS <- 1/(log(1+ Vs/Cmean^2))
+# Temporal effect matrix, weeks x timesteps (15 min) 
+Temporal[1,1] ~ dunif(-8,-5) 
+Temporal[2,1] ~ dnorm(Temporal[1,1],tauT) T(-8,8)
+Temporal[1,2] ~ dnorm(Temporal[1,1],tauT) T(-8,8) 
+for (i in 3:NWeeks) {
+    diff.F[i] <- 2*Temporal[i-1,1]-Temporal[i-2,1]
+    Temporal[i,1] ~ dnorm(diff.F[i],tauT) T(-8,8)
+}
+for (i in 3:NTsteps) {
+    diff.H[i] <- 2*Temporal[1,i-1]-Temporal[1,i-2]
+    Temporal[1,i] ~ dnorm(diff.H[i],tauT) T(-8,8)
+}
+for (i in 2:NWeeks) {
+    for (j in 2:NTsteps) {
+       diff.T[i,j] <- (Temporal[i-1,j-1] + (Temporal[i,j-1]-Temporal[i-1,j-1]) 
+                       + (Temporal[i-1,j]-Temporal[i-1,j-1]))
+	   # diff.T[i,j] <- ifelse(TP[i,j]==1,max(1,diff.Tstar[i,j]),diff.Tstar[i,j])				
+       Temporal[i,j] ~ dnorm(diff.T[i,j],tauT) 
+    }
+}
+# Next loop ensures maximum of Temp matrix --> 1
+maxTmprl <- max(Temporal)
+for (i in 1:100){
+	TmprlMax[i] ~ dnorm(maxTmprl,4)
+}
+for(i in 1:NWeeks){
+    for (j in 1:NTsteps){
+	   Temp[i,j] <- ilogit(Temporal[i,j])
+	}
+}
+# Set Priors
+Cmean ~ dt(0, 1/30^2 ,1) T(0,50)# grand mean of log Call Rate, across all strata
+sigE ~ dt(0, 1/5^2 ,1) T(0,20)   # variation in logit(DNN)
+theta ~ dnorm(0,.01)  # Effect of moon illumination (1 = full moon, -1 = new moon)
+alph0 ~ dnorm(-15,.01) # Mean intercept for function relating DNN to true prob
+phi ~ dt(0, 1/10^2 ,1) T(0,30) # slope of function relating DNN to true prob 
+sigT ~ dt(0, 1/5^2 ,1) T(0,20)   # temporal variance term, averaged across sites
+sigA ~ dt(0, 1/2.5^2 ,1) T(0,20)   # variance across sites, intercept for function relating DNN to true prob
+sigS ~ dt(0, 1/10^2 ,1) T(0,50)  # variance in call rate, sites within strata
+Dispers ~ dt(0, 1/20^2 ,1) T(0,100)  # Dispersion param (neg binomial # calls)
+# Priors for signal quality effects
+for (b in 1:Neff){
+    B[b] ~ dt(0, 1/2.5^2, 1) # cauchy prior (Gelman et al., 2008)
+}
+#
+tauT <- pow(sigT,-2)
+tauA <- pow(sigA,-2)
+Vs <- sigS^2 	
+#
+peakTemp <- 0.75
+}
+
