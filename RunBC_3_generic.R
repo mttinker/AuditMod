@@ -40,16 +40,22 @@ TimeStepIntvl =  15  # Number of minutes in each timestep
 subsamp =  3  # Level of Sub-sampling of entire data set: use every nth record
 DayOfYear_strt =  100  # April 10
 DayOfYear_end =  206  # July 26
-peakdates_strt = 140
-peakdates_end = 175
+peakdates_strt = 125
+peakdates_end = 155
 peaktimes_strt =  60  # Peak time boundary 1, minutes relative to a reference event (sunrise or sunset)
-peaktimes_stop =  180  # Peak time boundary 2, always > than boundary1 (minutes relative to event) 
+peaktimes_stop =  120  # Peak time boundary 2, always > than boundary1 (minutes relative to event) 
 peaktimes_ref =  1  # Reference event: 1 = after sunset, 2 = before sunrise, 3 = sunrise AND sunset 
 calendar_opt = 1  # year range: 1 = All data within calendar year, 2 = data spans New Year
 calendar_pk_opt = 1 # 1 = all in one year, 2 = peak spans new year
 data_opt =  1  # Data Option: 1 = Calls Only, 2 = Calls plus Nest Counts
 prior_opt = 1   # Priors: 1 = uninformed, 2 = informed (must supply results file)
 PriorResultsFile =  c()  # OPTIONAL: if prior_opt = 2, Rdata file containing parameter priors
+DateFocalStrt = "2017-6-01"
+DateFocalStop = "2017-6-30"
+TimeFocalStrt =  60  # Peak time boundary 1, minutes relative to a reference event (sunrise or sunset)
+TimeFocalStop =  120  # Peak time boundary 2, always > than boundary1 (minutes relative to event) 
+Site_focal = c("NBOG4","NBOG5","ULP8")
+#
 Nchains = 20
 Nburnin =  8000  # Number of burn-in reps Total reps = (Nsim-Nburnin) * (num Cores)
 Nadapt =  500  # Number of adapting reps, default 100
