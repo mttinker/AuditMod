@@ -3,7 +3,7 @@
 # NOTE: Assumed that this script is in same directory as Results file
 rm(list = ls())
 # USER SPECIFIED PARAMETERS -------------------------------------------------
-Resultsfile = "Results_HAPE_2017_BC3_00_2018-08-02-13h"
+Resultsfile = "Results_HAPE_2017_BC3_00_2018-08-03-07h"
 ResultsFolder = 'AuditMod/files'  # Folder path within RootDir where results files stored
 # Set root directory path... enter absolute path or relative,
 RootDir =  "above1"  # Examples "current" or "above1" or "C:/Users/XXXX/BayesianMethods"

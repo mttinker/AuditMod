@@ -49,7 +49,7 @@ prior_opt = 1   # Priors: 1 = uninformed, 2 = informed (must supply results file
 PriorResultsFile =  c()  # OPTIONAL: if prior_opt = 2, Rdata file containing parameter priors
 #
 Nchains = 20
-Nburnin =  5000  # Number of burn-in reps Total reps = (Nsim-Nburnin) * (num Cores)
+Nburnin =  7000  # Number of burn-in reps Total reps = (Nsim-Nburnin) * (num Cores)
 Nadapt =  500  # Number of adapting reps, default 100
 Totalreps = 5000 # Total desired reps (ie # simulations making up posterior)
 #
